@@ -48,7 +48,8 @@ jobs:
           set -euo pipefail
           if [ -f package.json ] && grep -q '"build"' package.json; then
             npm ci --no-audit --no-fund
-            npm run build -- --base=/turbo-pist-onizleme/
+            # önizleme canlıyla aynı alan adında: kendi localStorage anahtarlarına yazsın
+            VITE_DEPO_ONEK=onizleme_ VITE_SURUM="${{ steps.src.outputs.sha }}" npm run build -- --base=/turbo-pist-onizleme/
             mv dist ../site
           else
             mkdir ../site

@@ -36,6 +36,27 @@ jobs:
           path: oyun
           persist-credentials: false
 
+      - name: TURN aracısını doğrula (Worker → Metered)
+        # Oyun sitesi gibi istek atar. Loga sadece durum, X-TP-Kaynak ve sunucu adresleri yazılır;
+        # TURN kullanıcı adı/parolası yazılmaz (loglar herkese açık).
+        run: |
+          set -euo pipefail
+          curl -sS -m 20 -D baslik.txt -o ice.json -H "Origin: https://53mehmetozdemir-maker.github.io" https://turbo-pist-turn.53mehmetozdemir.workers.dev/ice
+          head -1 baslik.txt
+          grep -i '^x-tp-kaynak' baslik.txt || echo "X-TP-Kaynak: (yok)"
+          grep -i '^access-control-allow-origin' baslik.txt || true
+          python3 - <<'PY'
+          import json
+          l = json.load(open('ice.json'))
+          turn = [s for s in l if any(str(u).startswith(('turn:', 'turns:')) for u in (s['urls'] if isinstance(s['urls'], list) else [s['urls']]))]
+          print(f"{len(l)} ICE sunucusu, {len(turn)} TURN, kimlik bilgili: {sum(1 for s in turn if s.get('username') and s.get('credential'))}")
+          for s in l: print('  ', s['urls'])
+          PY
+          rm -f ice.json baslik.txt
+          # başka köken reddedilmeli
+          kod=$(curl -s -o /dev/null -w '%{http_code}' -m 20 -H "Origin: https://kotu.example" https://turbo-pist-turn.53mehmetozdemir.workers.dev/ice)
+          echo "başka köken: $kod"; test "$kod" = 403
+
       - name: Node
         if: hashFiles('oyun/package.json') != ''
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -50,7 +71,7 @@ jobs:
             npm ci --no-audit --no-fund
             # önizleme canlıyla aynı alan adında: kendi localStorage anahtarlarına yazsın, ayrı odalarda oynasın
             # VITE_TURN_URL: Worker adresi (gizli değil; boşken sadece STUN)
-            VITE_DEPO_ONEK=onizleme_ VITE_ODA_ONEK=onizleme- VITE_TURN_URL="" VITE_SURUM="${{ steps.src.outputs.sha }}" npm run build -- --base=/turbo-pist-onizleme/
+            VITE_DEPO_ONEK=onizleme_ VITE_ODA_ONEK=onizleme- VITE_TURN_URL="https://turbo-pist-turn.53mehmetozdemir.workers.dev/ice" VITE_SURUM="${{ steps.src.outputs.sha }}" npm run build -- --base=/turbo-pist-onizleme/
             mv dist ../site
           else
             mkdir ../site

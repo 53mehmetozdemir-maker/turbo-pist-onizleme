@@ -1,5 +1,6 @@
 # Turbo Pist önizleme: ana repodaki (turbo-pist) 'altyapi' dalının KAYNAK dosyasında
 # yazan commit'ini derler ve bu reponun GitHub Pages adresine yayınlar.
+# Önce o commit'in altın testleri koşar (turbo-pist/.github/workflows/testler.yml); biri kırmızıysa yayın durur.
 # Hiçbir secret/token kullanılmaz: ana repo herkese açık, sadece okunur.
 name: onizleme
 
@@ -18,15 +19,36 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  kaynak:
+    runs-on: ubuntu-24.04
+    outputs:
+      sha: ${{ steps.src.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: src
+        run: |
+          sha=$(tr -d '[:space:]' < KAYNAK)
+          echo "$sha" | grep -Eq '^[0-9a-f]{40}$' || { echo "::error::KAYNAK tam bir commit kimliği (40 karakter) olmalı"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  testler:
+    needs: kaynak
+    uses: 53mehmetozdemir-maker/turbo-pist/.github/workflows/testler.yml@altyapi
+    with:
+      ref: ${{ needs.kaynak.outputs.sha }}
+
   build:
+    needs: [kaynak, testler]
     runs-on: ubuntu-24.04
     steps:
       - name: Bu repo (KAYNAK dosyası için)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Kaynak commit'i oku
+      - name: Kaynak commit'i (testlerden geçen)
         id: src
-        run: echo "sha=$(tr -d '[:space:]' < KAYNAK)" >> "$GITHUB_OUTPUT"
+        run: echo "sha=${{ needs.kaynak.outputs.sha }}" >> "$GITHUB_OUTPUT"
 
       - name: Oyun kodunu çek (turbo-pist @ KAYNAK)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

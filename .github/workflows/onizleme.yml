@@ -35,7 +35,7 @@ jobs:
 
   testler:
     needs: kaynak
-    uses: 53mehmetozdemir-maker/turbo-pist/.github/workflows/testler.yml@altyapi
+    uses: 53mehmetozdemir-maker/turbo-pist/.github/workflows/testler.yml@main
     with:
       ref: ${{ needs.kaynak.outputs.sha }}
 
